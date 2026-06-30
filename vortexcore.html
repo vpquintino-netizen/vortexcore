@@ -15,12 +15,14 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #121214; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #1a1a1e; }
 ::-webkit-scrollbar-thumb { background: #29292e; border-radius: 3px; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 const MASTER_EMAIL = "vpquintio@gmail.com";
 const MASTER_PASSWORD = "@Blt18023";
@@ -47,9 +49,17 @@ function VortexCoreSaaS() {
   const [abaAtiva, setAbaAtiva] = useState('dashboard');
 
   const [inputNicho, setInputNicho] = useState("");
-  const [redeSocialSelecionada, setRedeSocialSelecionada] = useState("TikTok Orgânico");
+  const [redeSocialSelecionada, setRedeSocialSelecionada] = useState("Instagram Reels");
   const [scriptFinalGerado, setScriptFinalGerado] = useState("");
   const [isIaThinking, setIsIaThinking] = useState(false);
+
+  const [webhookN8n, setWebhookN8n] = useState(lsGet('webhook_n8n', ''));
+  const [apiTokenRede, setApiTokenRede] = useState(lsGet('api_token_rede', ''));
+  const [progressoPipeline, setProgressoPipeline] = useState(0);
+  const [etapaPipeline, setEtapaPipeline] = useState("");
+  const [logsExecucao, setLogsExecucao] = useState(lsGet('logs_agente', []));
+  const [isAutonomoActive, setIsAutonomoActive] = useState(false);
+  const autoRef = useRef(null);
 
   const [receitaMccMensal, setReceitaMccMensal] = useState(lsGet('mrr', 24900.00));
   const [sacadoNome, setSacadoNome] = useState("");
@@ -63,6 +73,13 @@ function VortexCoreSaaS() {
   const [cadEmailEmpresa, setCadEmailEmpresa] = useState("");
 
   const empresaAtiva = empresas.find(e => e.id === tenantAtivoId) || empresas[0];
+  const tenantWebhook = empresaAtiva?.webhook || webhookN8n || "";
+
+  const addLog = (msg) => {
+    const ts = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const entry = ts + " - " + msg;
+    setLogsExecucao(prev => [entry, ...prev].slice(0, 100));
+  };
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
@@ -76,21 +93,35 @@ function VortexCoreSaaS() {
   useEffect(() => { localStorage.setItem('vtx_empresas', JSON.stringify(empresas)); }, [empresas]);
   useEffect(() => { localStorage.setItem('vtx_faturas', JSON.stringify(livroDeFaturas)); }, [livroDeFaturas]);
   useEffect(() => { localStorage.setItem('vtx_mrr', JSON.stringify(receitaMccMensal)); }, [receitaMccMensal]);
+  useEffect(() => { localStorage.setItem('vtx_webhook_n8n', JSON.stringify(webhookN8n)); }, [webhookN8n]);
+  useEffect(() => { localStorage.setItem('vtx_api_token_rede', JSON.stringify(apiTokenRede)); }, [apiTokenRede]);
+  useEffect(() => { localStorage.setItem('vtx_logs_agente', JSON.stringify(logsExecucao)); }, [logsExecucao]);
+
+  useEffect(() => {
+    if (isAutonomoActive) {
+      autoRef.current = setInterval(() => {
+        const nichos = ["Odontologia Estética", "Dropshipping", "Infoprodutos", "Consultoria Empresarial", "Moda Fitness"];
+        const redes = ["Instagram Reels", "TikTok Orgânico", "YouTube Shorts"];
+        setInputNicho(nichos[Math.floor(Math.random() * nichos.length)]);
+        setRedeSocialSelecionada(redes[Math.floor(Math.random() * redes.length)]);
+        setTimeout(() => processarAgenteMarketing(), 500);
+      }, 30000);
+      addLog("Modo autônomo 24/7 ativado - agente gerando a cada 30s");
+    } else {
+      if (autoRef.current) { clearInterval(autoRef.current); autoRef.current = null; }
+      addLog("Modo autônomo desativado pelo operador");
+    }
+    return () => { if (autoRef.current) clearInterval(autoRef.current); };
+  }, [isAutonomoActive]);
 
   const executarAutenticacao = (e) => {
     e.preventDefault();
     if (userEmail === MASTER_EMAIL && userPassword === MASTER_PASSWORD) {
-      setIsLogged(true);
-      setIsAdminMaster(true);
-      setTenantAtivoId('master');
-      setLoginErrorMessage("");
+      setIsLogged(true); setIsAdminMaster(true); setTenantAtivoId('master'); setLoginErrorMessage("");
     } else {
       const inquilinoEncontrado = empresas.find(emp => emp.gmail === userEmail);
       if (inquilinoEncontrado && userPassword === "@Blt18023") {
-        setIsLogged(true);
-        setIsAdminMaster(false);
-        setTenantAtivoId(inquilinoEncontrado.id);
-        setLoginErrorMessage("");
+        setIsLogged(true); setIsAdminMaster(false); setTenantAtivoId(inquilinoEncontrado.id); setLoginErrorMessage("");
       } else {
         setLoginErrorMessage("Acesso Negado. Credenciais inexistentes ou revogadas.");
       }
@@ -101,59 +132,89 @@ function VortexCoreSaaS() {
     e.preventDefault();
     if (!cadNomeEmpresa || !cadEmailEmpresa) return;
     const novoTenantId = "empresa_" + Date.now();
-    const novoTenantObj = {
-      id: novoTenantId,
-      name: cadNomeEmpresa,
-      color: '#' + Math.floor(Math.random() * 16777215).toString(16),
-      domain: cadNomeEmpresa.toLowerCase().replace(/\s+/g, '') + '.com.br',
-      whatsapp: '',
-      gmail: cadEmailEmpresa,
-      webhook: '',
-      token: "VTX_TOKEN_" + Math.floor(1000 + Math.random() * 9000),
-      status: 'Ativo'
-    };
-    setEmpresas([...empresas, novoTenantObj]);
-    setCadNomeEmpresa("");
-    setCadEmailEmpresa("");
-    alert("Instância isolada provisionada com sucesso! Senha padrão de inquilino configurada.");
+    setEmpresas([...empresas, {
+      id: novoTenantId, name: cadNomeEmpresa, color: '#' + Math.floor(Math.random() * 16777215).toString(16),
+      domain: cadNomeEmpresa.toLowerCase().replace(/\s+/g, '') + '.com.br', whatsapp: '', gmail: cadEmailEmpresa,
+      webhook: '', token: "VTX_TOKEN_" + Math.floor(1000 + Math.random() * 9000), status: 'Ativo'
+    }]);
+    setCadNomeEmpresa(""); setCadEmailEmpresa("");
+    addLog("Novo inquilino cadastrado: " + cadNomeEmpresa);
+    alert("Instância isolada provisionada com sucesso!");
   };
 
   const revogarAcessoInquilino = (id) => {
     if (id === 'master') return;
     setEmpresas(empresas.filter(emp => emp.id !== id));
     setTenantAtivoId('master');
+    addLog("Acesso revogado para tenant " + id);
   };
 
-  const processarAgenteMarketing = () => {
+  const simularPipeline = async (etapas, idx, callback) => {
+    if (idx >= etapas.length) { callback(); return; }
+    setEtapaPipeline(etapas[idx].nome);
+    const start = etapas[idx].pesoInicio;
+    const end = etapas[idx].pesoFim;
+    for (let p = start; p <= end; p += 5) {
+      setProgressoPipeline(p);
+      await new Promise(r => setTimeout(r, 80));
+    }
+    await simularPipeline(etapas, idx + 1, callback);
+  };
+
+  const processarAgenteMarketing = async () => {
     if (!inputNicho) return;
     setIsIaThinking(true);
-    setTimeout(() => {
-      setScriptFinalGerado("🎥 [ROTEIRO VIRAL GERADO POR AGENTE INTEGRADO VORTEXCORE - " + redeSocialSelecionada.toUpperCase() + "]\n\n🎯 GANCHO DE RETENÇÃO (0-3s): \"Se você trabalha com " + inputNicho + ", pare o que estiver fazendo e olhe esse painel secreto...\"\n\n📦 CONTEÚDO PRINCIPAL: \"Enquanto 90% das empresas do mercado de " + inputNicho + " gastam fortunas com atendentes humanos que demoram 20 minutos para responder um lead, nossa estrutura White Label atende, qualifica e fecha vendas pelo WhatsApp em menos de 3 segundos no piloto automático.\"\n\n⚡ CALL TO ACTION (CTA): \"Quer parar de queimar dinheiro? Clique no botão abaixo ou mande uma mensagem no link da nossa bio e ative sua automação gratuita agora mesmo.\"\n\n📌 HASHTAGS RECOMENDADAS: #marketing #automacao #business #" + inputNicho.toLowerCase().replace(/\s+/g, '') + " #ia");
+    setProgressoPipeline(0);
+    setEtapaPipeline("Iniciando agente de IA...");
+
+    const script = "🎥 [ROTEIRO VIRAL GERADO POR AGENTE INTEGRADO VORTEXCORE - " + redeSocialSelecionada.toUpperCase() + "]\n\n🎯 GANCHO DE RETENÇÃO (0-3s): \"Se você trabalha com " + inputNicho + ", pare o que estiver fazendo e olhe esse painel secreto...\"\n\n📦 CONTEÚDO PRINCIPAL: \"Enquanto 90% das empresas do mercado de " + inputNicho + " gastam fortunas com atendentes humanos que demoram 20 minutos para responder um lead, nossa estrutura White Label atende, qualifica e fecha vendas pelo WhatsApp em menos de 3 segundos no piloto automático.\"\n\n⚡ CALL TO ACTION (CTA): \"Quer parar de queimar dinheiro? Clique no botão abaixo ou mande uma mensagem no link da nossa bio e ative sua automação gratuita agora mesmo.\"\n\n📌 HASHTAGS RECOMENDADAS: #marketing #automacao #business #" + inputNicho.toLowerCase().replace(/\s+/g, '') + " #ia";
+
+    const etapasPipeline = [
+      { nome: "Processando Comando de IA...", pesoInicio: 0, pesoFim: 20 },
+      { nome: "Gerando roteiro e copy...", pesoInicio: 20, pesoFim: 45 },
+      { nome: "Enviando para n8n Webhook...", pesoInicio: 45, pesoFim: 65 },
+      { nome: "Autenticando API de Redes Sociais...", pesoInicio: 65, pesoFim: 85 },
+      { nome: "Postagem Publicada com Sucesso!", pesoInicio: 85, pesoFim: 100 }
+    ];
+
+    await simularPipeline(etapasPipeline, 0, async () => {
+      setScriptFinalGerado(script);
+      addLog("Roteiro gerado para nicho: " + inputNicho + " na plataforma " + redeSocialSelecionada);
+
+      if (tenantWebhook) {
+        try {
+          const payload = { nicho: inputNicho, plataforma: redeSocialSelecionada, script, token: apiTokenRede || empresaAtiva?.token || "", empresa: empresaAtiva?.name || "VortexCore" };
+          const resp = await fetch(tenantWebhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          addLog("Webhook disparado - HTTP " + (resp.status || "sem resposta"));
+        } catch (err) {
+          addLog("Erro no webhook: " + (err?.message || "falha na requisição"));
+        }
+      } else {
+        addLog("Nenhum webhook configurado. Simulação concluída.");
+      }
+
       setIsIaThinking(false);
-    }, 1500);
+    });
   };
 
   const processarNovaFaturaMp = (e) => {
     e.preventDefault();
     if (!sacadoNome || !sacadoValor) return;
     const novoLancamento = {
-      id: "FT-2026-" + Math.floor(1000 + Math.random() * 9000),
-      sacado: sacadoNome,
-      valor: parseFloat(sacadoValor),
-      vencimento: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Pendente'
+      id: "FT-2026-" + Math.floor(1000 + Math.random() * 9000), sacado: sacadoNome,
+      valor: parseFloat(sacadoValor), vencimento: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], status: 'Pendente'
     };
     setLivroDeFaturas([novoLancamento, ...livroDeFaturas]);
     setReceitaMccMensal(receitaMccMensal + parseFloat(sacadoValor));
-    setSacadoNome("");
-    setSacadoValor("");
+    setSacadoNome(""); setSacadoValor("");
+    addLog("Fatura emitida: " + novoLancamento.id + " - R$" + parseFloat(sacadoValor).toFixed(2));
     alert("Fatura fiscal registrada. Link de checkout Mercado Pago gerado com sucesso.");
   };
 
   const navBtn = (tab, label) => (
     <button onClick={() => setAbaAtiva(tab)}
       className={"w-full text-left p-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all " + (abaAtiva === tab ? 'bg-[#29292e] text-white border-l-4' : 'text-gray-400 hover:bg-[#202024]')}
-      style={{ borderLeftColor: abaAtiva === tab ? empresaAtiva.color : 'transparent' }}>
+      style={{ borderLeftColor: abaAtiva === tab ? (empresaAtiva?.color || '#9D00FF') : 'transparent' }}>
       {label}
     </button>
   );
@@ -163,9 +224,7 @@ function VortexCoreSaaS() {
       <div className="min-h-screen bg-[#121214] text-white flex items-center justify-center font-sans p-4">
         <div className="bg-[#1a1a1e] border border-[#29292e] p-8 rounded-2xl w-full max-w-md shadow-2xl">
           <div className="text-center mb-8">
-            <div className="text-4xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-[#00F0FF] to-[#9D00FF]">
-              VORTEXCORE.IO
-            </div>
+            <div className="text-4xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-[#00F0FF] to-[#9D00FF]">VORTEXCORE.IO</div>
             <p className="text-gray-400 text-xs mt-2 font-medium tracking-wide uppercase">Plataforma de Gestão Multi-Tenant & IA</p>
           </div>
           <form onSubmit={executarAutenticacao} className="space-y-5">
@@ -178,9 +237,7 @@ function VortexCoreSaaS() {
               <input type="password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] rounded-xl p-3 text-white focus:outline-none focus:border-[#9D00FF] transition-all text-sm" placeholder="••••••••" required />
             </div>
             {loginErrorMessage && <p className="text-red-500 text-xs text-center font-semibold bg-red-950/40 p-2 rounded-lg border border-red-900/50">{loginErrorMessage}</p>}
-            <button type="submit" className="w-full bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] hover:opacity-90 text-black font-black p-3.5 rounded-xl transition-all uppercase tracking-widest text-xs">
-              Autenticar Infraestrutura
-            </button>
+            <button type="submit" className="w-full bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] hover:opacity-90 text-black font-black p-3.5 rounded-xl transition-all uppercase tracking-widest text-xs">Autenticar Infraestrutura</button>
           </form>
         </div>
       </div>
@@ -193,23 +250,21 @@ function VortexCoreSaaS() {
         <div>
           <div className="p-6 border-b border-[#29292e]">
             <div className="text-xl font-black tracking-widest text-white flex items-center gap-2">
-              <span style={{ color: empresaAtiva.color }}>■</span> {empresaAtiva.name}
+              <span style={{ color: empresaAtiva?.color || '#9D00FF' }}>■</span> {empresaAtiva?.name || "VortexCore"}
             </div>
             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Ambiente de Operação</p>
           </div>
-
           {isAdminMaster && (
             <div className="p-4 bg-[#202024] border-b border-[#29292e]">
               <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider">Mudar Empresa (Contexto)</label>
               <select value={tenantAtivoId} onChange={(e) => setTenantAtivoId(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] rounded-lg p-2 text-xs text-white focus:outline-none cursor-pointer font-medium">
                 <option value="master">🌐 Central Unificada Admin</option>
-                {empresas.filter(e => e.id !== 'master').map(e => (
+                {(empresas || []).filter(e => e.id !== 'master').map(e => (
                   <option key={e.id} value={e.id}>🏢 {e.name}</option>
                 ))}
               </select>
             </div>
           )}
-
           <nav className="p-4 space-y-1">
             {navBtn('dashboard', '📊 Dashboard')}
             {navBtn('marketing', '🤖 Agentes de IA')}
@@ -218,7 +273,6 @@ function VortexCoreSaaS() {
             {isAdminMaster && navBtn('inquilinos', '👥 Inquilinos / Licenças')}
           </nav>
         </div>
-
         <div className="p-4 border-t border-[#29292e] text-xs text-gray-400 space-y-2">
           <p className="text-[10px] uppercase tracking-wider">Sessão: {userEmail}</p>
           <button onClick={() => setIsLogged(false)} className="text-red-400 font-bold hover:underline block uppercase tracking-wider text-[10px]">Encerrar Operação</button>
@@ -226,13 +280,11 @@ function VortexCoreSaaS() {
       </aside>
 
       <main className="flex-1 p-8 overflow-y-auto max-h-screen">
-        {/* DASHBOARD */}
         {abaAtiva === 'dashboard' && (
           <div>
             <h1 className="text-2xl font-bold mb-1">Visão de Desempenho Executivo</h1>
             <p className="text-gray-400 text-sm mb-6">Visibilidade financeira unificada com auditoria interna contínua.</p>
-            <div className="text-xs text-gray-500 mb-6">Domínio Vinculado: <span className="text-[#00F0FF] font-semibold">{empresaAtiva.domain}</span></div>
-
+            <div className="text-xs text-gray-500 mb-6">Domínio Vinculado: <span className="text-[#00F0FF] font-semibold">{empresaAtiva?.domain || "—"}</span></div>
             <div className="grid grid-cols-3 gap-6 mb-8">
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6">
                 <p className="text-gray-400 text-[10px] uppercase font-bold tracking-wider mb-2">Faturamento do Ecossistema (MRR)</p>
@@ -247,7 +299,6 @@ function VortexCoreSaaS() {
                 <p className="text-3xl font-black text-green-400">Regularizado</p>
               </div>
             </div>
-
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between text-sm mb-2"><span>Fluxo de Conversão Automatizado (Leads)</span><span>89%</span></div>
@@ -261,95 +312,120 @@ function VortexCoreSaaS() {
           </div>
         )}
 
-        {/* AGENTES DE IA */}
         {abaAtiva === 'marketing' && (
           <div>
             <h1 className="text-2xl font-bold mb-1">Agentes de Inteligência Artificial</h1>
-            <p className="text-gray-400 text-sm mb-8">Geração de criativos de alta conversão, copys comerciais e scripts para redes sociais.</p>
+            <p className="text-gray-400 text-sm mb-8">Geração de criativos de alta conversão com disparo real via webhook n8n e postagem autônoma 24/7.</p>
 
-            <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 max-w-2xl space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">Diretrizes da Campanha</label>
-                <p className="text-xs text-gray-500 mb-2">Qual o produto ou nicho de atuação?</p>
-                <input type="text" value={inputNicho} onChange={(e) => setInputNicho(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] rounded-xl p-3 text-white focus:outline-none focus:border-[#00F0FF] text-sm" placeholder="Ex: Odontologia, Infoproduto, DropShipping..." />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">Canal de Distribuição da Mídia</label>
-                <select value={redeSocialSelecionada} onChange={(e) => setRedeSocialSelecionada(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] rounded-xl p-3 text-white focus:outline-none text-sm cursor-pointer font-medium">
-                  <option>TikTok Orgânico (Ganchos Virais)</option>
-                  <option>Instagram Reels (Retenção)</option>
-                  <option>YouTube Shorts (Escala)</option>
-                </select>
-              </div>
-              <button onClick={processarAgenteMarketing} disabled={isIaThinking} className="w-full bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] hover:opacity-90 text-black font-bold p-3 rounded-xl transition-all text-sm uppercase tracking-wider">
-                {isIaThinking ? "Agente de IA Processando Dados..." : "Disparar Agente Autónomo"}
-              </button>
-              <div>
-                <p className="text-sm font-semibold text-gray-300 mb-2">Código e Texto Gerado</p>
-                <div className="bg-[#121214] border border-[#29292e] rounded-xl p-4 text-sm text-gray-300 whitespace-pre-wrap font-mono min-h-[120px]">
-                  {scriptFinalGerado || "O Agente de Marketing está aguardando as diretrizes para escrever os criativos."}
+            <div className="grid grid-cols-3 gap-6 max-w-5xl">
+              <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
+                <p className="font-bold">📝 Diretrizes da Campanha</p>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Produto ou nicho:</p>
+                  <input type="text" value={inputNicho} onChange={(e) => setInputNicho(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] rounded-xl p-3 text-white focus:outline-none focus:border-[#00F0FF] text-sm" placeholder="Ex: Odontologia, Infoproduto..." />
                 </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Rede social:</p>
+                  <select value={redeSocialSelecionada} onChange={(e) => setRedeSocialSelecionada(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] rounded-xl p-3 text-white focus:outline-none text-sm cursor-pointer font-medium">
+                    <option>Instagram Reels (Retenção)</option>
+                    <option>TikTok Orgânico (Ganchos Virais)</option>
+                    <option>YouTube Shorts (Escala)</option>
+                  </select>
+                </div>
+                <button onClick={processarAgenteMarketing} disabled={isIaThinking} className="w-full bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] hover:opacity-90 text-black font-bold p-3 rounded-xl transition-all text-sm uppercase tracking-wider">
+                  {isIaThinking ? "Processando..." : "Disparar Agente Autónomo"}
+                </button>
+
+                <div className="border-t border-[#29292e] pt-4 space-y-3">
+                  <p className="font-bold text-xs">🔗 Conexão n8n (Webhook Real)</p>
+                  <input type="url" value={webhookN8n} onChange={(e) => setWebhookN8n(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] rounded-xl p-2.5 text-xs text-white" placeholder="https://seu-n8n.com/webhook/vortex" />
+                  <input type="text" value={apiTokenRede} onChange={(e) => setApiTokenRede(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] rounded-xl p-2.5 text-xs text-white" placeholder="Token de Autenticação da API" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">🤖 Postagem 24/7</span>
+                    <button onClick={() => setIsAutonomoActive(!isAutonomoActive)} className={"text-xs font-bold px-3 py-1.5 rounded-lg transition-all " + (isAutonomoActive ? 'bg-green-600 text-white' : 'bg-[#29292e] text-gray-300 hover:bg-[#3a3a42]')}>
+                      {isAutonomoActive ? "Ativo" : "Ativar"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
+                <p className="font-bold">⚙️ Pipeline de Publicação</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[10px] text-gray-400"><span>{etapaPipeline || "Aguardando comando..."}</span><span>{progressoPipeline}%</span></div>
+                  <div className="w-full bg-[#29292e] rounded-full h-4 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-[#00F0FF] to-[#9D00FF]" style={{width: progressoPipeline + '%'}}></div>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 mt-2">
+                    {[{n:"Comando",l:1},{n:"Roteiro",l:25},{n:"Webhook",l:50},{n:"API",l:70},{n:"Postado",l:90}].map(s => (
+                      <div key={s.n} className={"text-[8px] text-center p-1 rounded " + (progressoPipeline >= s.l ? 'bg-[#00F0FF]/20 text-[#00F0FF]' : 'bg-[#29292e] text-gray-500')}>{s.n}</div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-300 mb-2">Código e Texto Gerado</p>
+                  <div className="bg-[#121214] border border-[#29292e] rounded-xl p-3 text-xs text-gray-300 whitespace-pre-wrap font-mono min-h-[100px] max-h-[200px] overflow-y-auto">
+                    {scriptFinalGerado || "O Agente de Marketing está aguardando as diretrizes para escrever os criativos."}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-3">
+                <p className="font-bold">📋 Logs de Auditoria do Agente</p>
+                <div className="bg-[#121214] border border-[#29292e] rounded-xl p-3 h-[300px] overflow-y-auto space-y-1">
+                  {(logsExecucao.length === 0) && <p className="text-xs text-gray-500">Nenhuma execução registrada ainda.</p>}
+                  {logsExecucao.map((log, i) => (
+                    <p key={i} className="text-[10px] font-mono text-gray-400 border-b border-[#29292e]/50 pb-1">{log}</p>
+                  ))}
+                </div>
+                <button onClick={() => setLogsExecucao([])} className="w-full text-[10px] text-gray-500 hover:text-red-400 font-bold uppercase tracking-wider transition-all">Limpar Logs</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* CANAIS & GATEWAY */}
         {abaAtiva === 'canais' && (
           <div>
             <h1 className="text-2xl font-bold mb-1">Canais Conversacionais & Endpoints</h1>
             <p className="text-gray-400 text-sm mb-8">Integração nativa unificada da Evolution API e construtor de funis visuais Typebot.</p>
-
             <div className="grid grid-cols-2 gap-6 max-w-3xl">
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
                 <p className="font-bold">📳 Gateway WhatsApp API</p>
                 <p className="text-xs text-gray-400">Vincule e emparelhe o dispositivo móvel para habilitar o chatbot de funil em um único clique.</p>
                 <div className="bg-[#121214] border border-[#29292e] rounded-xl p-4 space-y-2">
                   <p className="text-xs uppercase font-bold text-gray-500">Vortex QR Code</p>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-green-400">●</span> Sincronizado
-                  </div>
+                  <div className="flex items-center gap-2 text-sm"><span className="text-green-400">●</span> Sincronizado</div>
                   <p className="text-[10px] text-gray-500">Instância Ativa e Pronta para Uso</p>
                 </div>
-                <button onClick={() => alert("Sessão da Evolution API reiniciada. Novo QR Code pronto.")} className="bg-gradient-to-r from-[#00F0FF] to-[#29292e] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg border border-[#00F0FF]/20 uppercase tracking-wider">
-                  Recarregar Token
-                </button>
+                <button onClick={() => alert("Sessão da Evolution API reiniciada. Novo QR Code pronto.")} className="bg-gradient-to-r from-[#00F0FF] to-[#29292e] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg border border-[#00F0FF]/20 uppercase tracking-wider">Recarregar Token</button>
                 <div className="text-xs text-gray-500">
-                  <p>Webhook: <span className="text-gray-300">{empresaAtiva.webhook || "Não configurado"}</span></p>
-                  <p>Token: <span className="text-gray-300">{empresaAtiva.token || "Não configurado"}</span></p>
+                  <p>Webhook: <span className="text-gray-300">{empresaAtiva?.webhook || "Não configurado"}</span></p>
+                  <p>Token: <span className="text-gray-300">{empresaAtiva?.token || "Não configurado"}</span></p>
                 </div>
               </div>
-
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
                 <p className="font-bold">✉️ Automação de E-mail (Gmail)</p>
                 <p className="text-xs text-gray-400">Conceda autonomia de triagem e respostas comerciais ao agente de IA informando o e-mail da empresa.</p>
                 <input type="email" className="w-full bg-[#121214] border border-[#29292e] rounded-xl p-3 text-white text-sm" placeholder="Endereço de E-mail da Instância" />
-                <button onClick={() => alert("Permissão de leitura e escrita concedida ao Agente de IA corporativo.")} className="w-full bg-[#29292e] border border-[#3a3a42] text-white hover:bg-[#3a3a42] font-bold p-3 rounded-xl text-xs uppercase tracking-wider transition-all">
-                  Vincular e Conceder Permissões
-                </button>
+                <button onClick={() => alert("Permissão de leitura e escrita concedida ao Agente de IA corporativo.")} className="w-full bg-[#29292e] border border-[#3a3a42] text-white hover:bg-[#3a3a42] font-bold p-3 rounded-xl text-xs uppercase tracking-wider transition-all">Vincular e Conceder Permissões</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* FINANCEIRO */}
         {abaAtiva === 'financeiro' && (
           <div>
             <h1 className="text-2xl font-bold mb-1">Financeiro e Faturamento Fiscal</h1>
             <p className="text-gray-400 text-sm mb-8">Gere cobranças de aluguel por pix ou boleto Mercado Pago para o controle de caixa interno.</p>
-
             <div className="grid grid-cols-3 gap-6 max-w-5xl">
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
                 <p className="font-bold">Emitir Cobrança MP</p>
                 <form onSubmit={processarNovaFaturaMp} className="space-y-3">
                   <input type="text" value={sacadoNome} onChange={(e) => setSacadoNome(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] p-3 rounded-xl text-xs text-white focus:outline-none focus:border-[#00F0FF]" placeholder="Nome da Empresa Razão Social" required />
                   <input type="number" step="0.01" value={sacadoValor} onChange={(e) => setSacadoValor(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] p-3 rounded-xl text-xs text-white focus:outline-none focus:border-[#9D00FF]" placeholder="Valor Nominal da Fatura (R$)" required />
-                  <button type="submit" className="w-full bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] text-black font-bold p-3 rounded-xl text-xs uppercase tracking-wider hover:opacity-90 transition-all">
-                    Registrar e Gerar Fatura
-                  </button>
+                  <button type="submit" className="w-full bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] text-black font-bold p-3 rounded-xl text-xs uppercase tracking-wider hover:opacity-90 transition-all">Registrar e Gerar Fatura</button>
                 </form>
               </div>
-
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
                 <p className="font-bold">Chave PIX Estática</p>
                 <p className="text-xs text-gray-400">Receba pagamentos dos locatários sem taxas. Use a chave abaixo:</p>
@@ -358,24 +434,18 @@ function VortexCoreSaaS() {
                   <p className="text-[#00F0FF] text-xs font-bold break-all">{PIX_KEY}</p>
                   <p className="text-gray-500 text-[10px]">{PIX_NAME}</p>
                 </div>
-                <button onClick={() => { navigator.clipboard.writeText(PIX_KEY); alert("Chave PIX copiada!"); }} className="w-full bg-[#29292e] border border-[#3a3a42] text-white hover:bg-[#3a3a42] font-bold p-2 rounded-xl text-xs uppercase tracking-wider transition-all">
-                  Copiar Chave PIX
-                </button>
+                <button onClick={() => { navigator.clipboard.writeText(PIX_KEY); alert("Chave PIX copiada!"); }} className="w-full bg-[#29292e] border border-[#3a3a42] text-white hover:bg-[#3a3a42] font-bold p-2 rounded-xl text-xs uppercase tracking-wider transition-all">Copiar Chave PIX</button>
               </div>
-
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-3">
                 <p className="font-bold">Livro de Lançamentos Fiscais</p>
-                {livroDeFaturas.length === 0 && <p className="text-xs text-gray-500">Nenhuma fatura registrada.</p>}
-                {livroDeFaturas.map(f => (
+                {(livroDeFaturas || []).length === 0 && <p className="text-xs text-gray-500">Nenhuma fatura registrada.</p>}
+                {(livroDeFaturas || []).map(f => (
                   <div key={f.id} className="bg-[#121214] border border-[#29292e] rounded-xl p-3 text-xs">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold">{f.sacado}</span>
                       <span className={"font-bold " + (f.status === 'Pago' ? 'text-green-400' : 'text-yellow-400')}>{f.status}</span>
                     </div>
-                    <div className="flex justify-between text-gray-400 mt-1">
-                      <span>{f.id}</span>
-                      <span>R$ {f.valor.toFixed(2)}</span>
-                    </div>
+                    <div className="flex justify-between text-gray-400 mt-1"><span>{f.id}</span><span>R$ {(f.valor || 0).toFixed(2)}</span></div>
                     <div className="text-gray-500">Venc: {f.vencimento}</div>
                   </div>
                 ))}
@@ -384,36 +454,32 @@ function VortexCoreSaaS() {
           </div>
         )}
 
-        {/* INQUILINOS */}
         {abaAtiva === 'inquilinos' && isAdminMaster && (
           <div>
             <h1 className="text-2xl font-bold mb-1">Gerenciador de Ambientes Externos (Tenants)</h1>
             <p className="text-gray-400 text-sm mb-8">Crie, monitore ou bloqueie o acesso de terceiros que alugam sua plataforma de forma instantânea.</p>
-
             <div className="grid grid-cols-2 gap-6 max-w-3xl">
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
                 <p className="font-bold">Cadastrar Novo Inquilino</p>
                 <form onSubmit={salvarNovoInquilino} className="space-y-3">
                   <input type="text" value={cadNomeEmpresa} onChange={(e) => setCadNomeEmpresa(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] p-3 rounded-xl text-xs text-white" placeholder="Nome da Empresa" required />
                   <input type="email" value={cadEmailEmpresa} onChange={(e) => setCadEmailEmpresa(e.target.value)} className="w-full bg-[#121214] border border-[#29292e] p-3 rounded-xl text-xs text-white" placeholder="E-mail de Login" required />
-                  <button type="submit" className="w-full bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] text-black font-bold p-3 rounded-xl text-xs uppercase tracking-wider hover:opacity-90 transition-all">
-                    Provisionar Ambiente
-                  </button>
+                  <button type="submit" className="w-full bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] text-black font-bold p-3 rounded-xl text-xs uppercase tracking-wider hover:opacity-90 transition-all">Provisionar Ambiente</button>
                 </form>
               </div>
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-3">
                 <p className="font-bold">Ambientes Ativos na Plataforma</p>
-                {empresas.map(e => (
+                {(empresas || []).map(e => (
                   <div key={e.id} className="bg-[#121214] border border-[#29292e] rounded-xl p-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full" style={{backgroundColor: e.color}}></span>
+                      <span className="w-3 h-3 rounded-full" style={{backgroundColor: e.color || '#666'}}></span>
                       <div>
                         <p className="text-sm font-semibold">{e.name}</p>
                         <p className="text-xs text-gray-400">{e.gmail || 'Admin Master'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-green-400">{e.status}</span>
+                      <span className="text-xs text-green-400">{e.status || "Ativo"}</span>
                       {e.id !== 'master' && (
                         <button onClick={() => revogarAcessoInquilino(e.id)} className="text-red-400 hover:text-red-500 text-xs font-bold underline">Revogar</button>
                       )}
@@ -431,6 +497,12 @@ function VortexCoreSaaS() {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<VortexCoreSaaS />);
+
+const origRender = root.render;
+root.render = (el) => {
+  origRender.call(root, el);
+  root._vtxRenderCount = (root._vtxRenderCount || 0) + 1;
+};
 
 setTimeout(() => {
   if (typeof lucide !== 'undefined') lucide.createIcons();
