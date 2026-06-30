@@ -83,8 +83,8 @@ function VortexCoreSaaS() {
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (['dashboard','marketing','canais','financeiro','inquilinos'].includes(hash)) setAbaAtiva(hash);
-    const handler = (e) => { if (['dashboard','marketing','canais','financeiro','inquilinos'].includes(e.detail)) setAbaAtiva(e.detail); };
+    if (['dashboard','marketing','canais','financeiro','inquilinos','treinamento'].includes(hash)) setAbaAtiva(hash);
+    const handler = (e) => { if (['dashboard','marketing','canais','financeiro','inquilinos','treinamento'].includes(e.detail)) setAbaAtiva(e.detail); };
     window.addEventListener('navigate', handler);
     return () => window.removeEventListener('navigate', handler);
   }, []);
@@ -270,6 +270,7 @@ function VortexCoreSaaS() {
             {navBtn('marketing', '🤖 Agentes de IA')}
             {navBtn('canais', '🔌 Canais & Gateway')}
             {navBtn('financeiro', '💳 Financeiro & MP')}
+            {navBtn('treinamento', '📖 Central de Treinamento')}
             {isAdminMaster && navBtn('inquilinos', '👥 Inquilinos / Licenças')}
           </nav>
         </div>
@@ -447,6 +448,108 @@ function VortexCoreSaaS() {
                     </div>
                     <div className="flex justify-between text-gray-400 mt-1"><span>{f.id}</span><span>R$ {(f.valor || 0).toFixed(2)}</span></div>
                     <div className="text-gray-500">Venc: {f.vencimento}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 max-w-5xl mt-6">
+              <p className="font-bold mb-4">📦 Modelos de Assinatura White Label</p>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { nome: "Starter", preco: "297", desc: "Apenas Funil e WhatsApp", recursos: ["Funil Conversacional Evolution API", "WhatsApp Chatbot 24h", "QR Code ilimitado", "Relatórios básicos"], destaque: false },
+                  { nome: "Pro", preco: "497", desc: "Funil + Agentes de IA", recursos: ["Tudo do Starter", "Agentes de Marketing IA", "Geração de roteiros virais", "Automação Gmail", "Pipeline de postagem"], destaque: true },
+                  { nome: "Enterprise", preco: "797", desc: "Autonomia Total + Suporte", recursos: ["Tudo do Pro", "Postagem autônoma 24/7", "Webhook n8n dedicado", "Suporte prioritário", "Multi-contas redes sociais"], destaque: false }
+                ].map(plano => (
+                  <div key={plano.nome} className={"bg-[#121214] border rounded-xl p-4 space-y-3 " + (plano.destaque ? 'border-[#00F0FF] ring-1 ring-[#00F0FF]/30' : 'border-[#29292e]')}>
+                    <div>
+                      <p className="text-sm font-bold">{plano.nome}</p>
+                      <p className="text-[10px] text-gray-400">{plano.desc}</p>
+                    </div>
+                    <p className="text-2xl font-black text-white">R$ {plano.preco}<span className="text-xs text-gray-500 font-normal">/mês</span></p>
+                    <ul className="space-y-1">
+                      {plano.recursos.map(r => <li key={r} className="text-[10px] text-gray-300 flex items-center gap-1"><span className="text-green-400">✓</span>{r}</li>)}
+                    </ul>
+                    <button onClick={() => { const msg = encodeURIComponent("Olá! Tenho interesse no plano " + plano.nome + " (R$" + plano.preco + "/mês) da VortexCore. Pode me enviar mais detalhes?"); window.open("https://wa.me/5511999999999?text=" + msg, '_blank'); }} className={"w-full font-bold p-2 rounded-lg text-xs uppercase tracking-wider transition-all " + (plano.destaque ? 'bg-gradient-to-r from-[#00F0FF] to-[#9D00FF] text-black' : 'bg-[#29292e] text-gray-300 hover:bg-[#3a3a42]')}>Contratar via WhatsApp</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 max-w-5xl mt-6">
+              <p className="font-bold mb-4">🎯 Gatilhos de Abordagem de Clientes</p>
+              <p className="text-xs text-gray-400 mb-4">Scripts de prospecção copie e cole para usar no WhatsApp com seus leads:</p>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { titulo: "📩 Abordagem Inicial (Frio)", script: "Olá [Nome]! Tudo bem? Aqui é [Seu Nome] da VortexCore. Vi que você trabalha com [Nicho] e tenho uma sugestão que pode aumentar seus resultados em até 40% sem gastar mais com anúncios. Tem 3 minutos para eu explicar rapidamente?" },
+                  { titulo: "🔥 Follow-up (2 dias sem resposta)", script: "Oi [Nome]! Tudo certinho? Semana passada falei sobre como estamos ajudando empresas de [Nicho] a automatizar o atendimento e faturar mais com IA. Posso te enviar um case de sucesso do seu segmento?" },
+                  { titulo: "⚡ Proposta Comercial (Qualificado)", script: "[Nome], conforme conversamos, separei a melhor opção para sua empresa:\n\n📌 Plano Recomendado: [Starter/Pro/Enterprise]\n💰 Investimento: R$ [297/497/797]/mês\n✅ Ativação em 24 horas\n\nAceita começar com 7 dias de teste grátis? Posso já liberar seu acesso agora mesmo." },
+                  { titulo: "🚀 Fechamento (Objeção de Preço)", script: "Entendo, [Nome]! Deixa eu te mostrar uma conta rápida: com nosso sistema, cada lead qualificado custa cerca de R$ 0,37 via WhatsApp. Se você fechar apenas 3 clientes extras por mês, o sistema se paga 10x. Vale testar por 7 dias grátis sem compromisso?" }
+                ].map(s => (
+                  <div key={s.titulo} className="bg-[#121214] border border-[#29292e] rounded-xl p-4 space-y-2">
+                    <p className="text-xs font-bold">{s.titulo}</p>
+                    <p className="text-[10px] text-gray-400 whitespace-pre-wrap font-mono bg-[#0a0a0c] p-2 rounded-lg border border-[#1a1a1e]">{s.script}</p>
+                    <button onClick={() => { navigator.clipboard.writeText(s.script); alert("Script copiado!"); }} className="text-[10px] text-[#00F0FF] hover:underline font-bold uppercase">Copiar Script</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {abaAtiva === 'treinamento' && (
+          <div>
+            <h1 className="text-2xl font-bold mb-1">📖 Central de Treinamento</h1>
+            <p className="text-gray-400 text-sm mb-8">Passo a passo para criar imagens com IA no Hugging Face e vídeos no CapCut usando os roteiros do painel.</p>
+
+            <div className="grid grid-cols-2 gap-6 max-w-4xl mb-8">
+              <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
+                <div className="flex items-center gap-2"><span className="text-2xl">🎨</span><p className="font-bold">Passo 1: Criar Imagens com IA (Grátis)</p></div>
+                <ol className="space-y-3 text-xs text-gray-300 list-decimal list-inside">
+                  <li>Vá na aba <strong className="text-[#00F0FF]">🤖 Agentes de IA</strong> e gere um roteiro para seu nicho.</li>
+                  <li>Copie o prompt de texto gerado no campo "Código e Texto Gerado".</li>
+                  <li>Abra o Hugging Face: <a href="https://huggingface.co/spaces/black-forest-labs/FLUX.1-schnell" target="_blank" className="text-[#00F0FF] underline">FLUX.1-schnell</a> ou <a href="https://huggingface.co/spaces/stabilityai/stable-diffusion-3.5" target="_blank" className="text-[#00F0FF] underline">Stable Diffusion 3.5</a>.</li>
+                  <li>Cole o prompt no campo de texto, clique em <strong>"Generate"</strong> e aguarde 2 segundos.</li>
+                  <li>Clique com botão direito na imagem gerada e escolha <strong>"Salvar como"</strong>.</li>
+                  <li>Agora você tem uma imagem profissional e exclusiva para o post!</li>
+                </ol>
+                <div className="bg-[#121214] border border-[#29292e] rounded-lg p-3 text-[10px] text-gray-400">
+                  💡 <strong>Dica:</strong> Quanto mais detalhado o prompt gerado pelo agente, melhor a imagem. Você pode adicionar "fotografia profissional, iluminação de estúdio, 8K" no final do prompt.
+                </div>
+              </div>
+
+              <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
+                <div className="flex items-center gap-2"><span className="text-2xl">🎬</span><p className="font-bold">Passo 2: Criar Vídeo com IA (Grátis)</p></div>
+                <ol className="space-y-3 text-xs text-gray-300 list-decimal list-inside">
+                  <li>Na aba <strong className="text-[#00F0FF]">🤖 Agentes de IA</strong>, gere o roteiro para o nicho desejado.</li>
+                  <li>Clique no botão <strong>"Copiar Roteiro"</strong> ou selecione e copie o texto manualmente (Ctrl+C).</li>
+                  <li>Abra o <a href="https://www.capcut.com/pt-br/editor" target="_blank" className="text-[#00F0FF] underline">CapCut Web</a> gratuitamente.</li>
+                  <li>Clique em <strong>"Texto para Vídeo"</strong> (Script to Video) no menu principal.</li>
+                  <li>Cole o roteiro completo (gancho + conteúdo + CTA) no campo de texto.</li>
+                  <li>Escolha o <strong>idioma e a voz</strong> da narração (português brasileiro disponível).</li>
+                  <li>O CapCut gera automaticamente o vídeo com <strong>voz IA + legendas + cenas</strong> em segundos.</li>
+                  <li>Exporte o vídeo e publique direto no TikTok, Instagram Reels ou YouTube Shorts!</li>
+                </ol>
+                <div className="bg-[#121214] border border-[#29292e] rounded-lg p-3 text-[10px] text-gray-400">
+                  💡 <strong>Dica:</strong> O Gancho de Retenção (0-3s) já está otimizado no roteiro — o CapCut vai destacá-lo automaticamente na abertura do vídeo.
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 max-w-4xl">
+              <p className="font-bold mb-4">✅ Fluxo Completo de Produção</p>
+              <div className="grid grid-cols-5 gap-2 text-center">
+                {[
+                  { passo: "1", titulo: "Gerar Roteiro", local: "Painel VortexCore", cor: "#9D00FF" },
+                  { passo: "2", titulo: "Criar Imagem", local: "Hugging Face FLUX", cor: "#00F0FF" },
+                  { passo: "3", titulo: "Gerar Vídeo", local: "CapCut Web", cor: "#FF007A" },
+                  { passo: "4", titulo: "Publicar", local: "TikTok/Reels/Shorts", cor: "#00FF88" },
+                  { passo: "5", titulo: "Faturar", local: "Clientes & Leads", cor: "#FFD700" }
+                ].map(item => (
+                  <div key={item.passo} className="bg-[#121214] border border-[#29292e] rounded-xl p-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center mx-auto mb-2 text-sm font-black" style={{backgroundColor: item.cor + '30', color: item.cor}}>{item.passo}</div>
+                    <p className="text-xs font-bold">{item.titulo}</p>
+                    <p className="text-[8px] text-gray-500 mt-1">{item.local}</p>
                   </div>
                 ))}
               </div>
