@@ -24,6 +24,12 @@ const { useState, useEffect } = React;
 
 const MASTER_EMAIL = "vpquintio@gmail.com";
 const MASTER_PASSWORD = "@Blt18023";
+const PIX_KEY = "vpquintio@gmail.com";
+const PIX_NAME = "VortexCore Tecnologia Ltda";
+
+const lsGet = (key, fallback) => {
+  try { const v = localStorage.getItem('vtx_' + key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+};
 
 function VortexCoreSaaS() {
   const [userEmail, setUserEmail] = useState("");
@@ -32,11 +38,11 @@ function VortexCoreSaaS() {
   const [isAdminMaster, setIsAdminMaster] = useState(false);
   const [loginErrorMessage, setLoginErrorMessage] = useState("");
 
-  const [empresas, setEmpresas] = useState([
+  const [empresas, setEmpresas] = useState(lsGet('empresas', [
     { id: 'master', name: 'VortexCore Global', color: '#9D00FF', domain: 'vortexcore.io', whatsapp: '+5511999999999', gmail: 'vpquintio@gmail.com', webhook: 'https://vortexcore.io/hook', token: 'VTX_MASTER_777', status: 'Ativo' },
     { id: 'empresa_1', name: 'Clínica Sorriso Perfect', color: '#00F0FF', domain: 'sorrisoperfect.com.br', whatsapp: '+5511988888888', gmail: 'clinica.sorriso@gmail.com', webhook: '', token: '', status: 'Ativo' },
     { id: 'empresa_2', name: 'Alpha Logistics S/A', color: '#FF007A', domain: 'alphalog.com', whatsapp: '', gmail: '', webhook: '', token: '', status: 'Ativo' }
-  ]);
+  ]));
   const [tenantAtivoId, setTenantAtivoId] = useState('master');
   const [abaAtiva, setAbaAtiva] = useState('dashboard');
 
@@ -45,13 +51,13 @@ function VortexCoreSaaS() {
   const [scriptFinalGerado, setScriptFinalGerado] = useState("");
   const [isIaThinking, setIsIaThinking] = useState(false);
 
-  const [receitaMccMensal, setReceitaMccMensal] = useState(24900.00);
+  const [receitaMccMensal, setReceitaMccMensal] = useState(lsGet('mrr', 24900.00));
   const [sacadoNome, setSacadoNome] = useState("");
   const [sacadoValor, setSacadoValor] = useState("");
-  const [livroDeFaturas, setLivroDeFaturas] = useState([
+  const [livroDeFaturas, setLivroDeFaturas] = useState(lsGet('faturas', [
     { id: "FT-2026-8812", sacado: 'Clínica Sorriso Perfect', valor: 450.00, vencimento: '2026-07-05', status: 'Pago' },
     { id: "FT-2026-9041", sacado: 'Alpha Logistics S/A', valor: 650.00, vencimento: '2026-07-10', status: 'Pendente' }
-  ]);
+  ]));
 
   const [cadNomeEmpresa, setCadNomeEmpresa] = useState("");
   const [cadEmailEmpresa, setCadEmailEmpresa] = useState("");
@@ -67,6 +73,9 @@ function VortexCoreSaaS() {
   }, []);
 
   useEffect(() => { window.location.hash = abaAtiva; }, [abaAtiva]);
+  useEffect(() => { localStorage.setItem('vtx_empresas', JSON.stringify(empresas)); }, [empresas]);
+  useEffect(() => { localStorage.setItem('vtx_faturas', JSON.stringify(livroDeFaturas)); }, [livroDeFaturas]);
+  useEffect(() => { localStorage.setItem('vtx_mrr', JSON.stringify(receitaMccMensal)); }, [receitaMccMensal]);
 
   const executarAutenticacao = (e) => {
     e.preventDefault();
@@ -329,7 +338,7 @@ function VortexCoreSaaS() {
             <h1 className="text-2xl font-bold mb-1">Financeiro e Faturamento Fiscal</h1>
             <p className="text-gray-400 text-sm mb-8">Gere cobranças de aluguel por pix ou boleto Mercado Pago para o controle de caixa interno.</p>
 
-            <div className="grid grid-cols-2 gap-6 max-w-3xl">
+            <div className="grid grid-cols-3 gap-6 max-w-5xl">
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
                 <p className="font-bold">Emitir Cobrança MP</p>
                 <form onSubmit={processarNovaFaturaMp} className="space-y-3">
@@ -340,8 +349,23 @@ function VortexCoreSaaS() {
                   </button>
                 </form>
               </div>
+
+              <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-4">
+                <p className="font-bold">Chave PIX Estática</p>
+                <p className="text-xs text-gray-400">Receba pagamentos dos locatários sem taxas. Use a chave abaixo:</p>
+                <div className="bg-[#121214] border border-[#29292e] rounded-xl p-4 text-center space-y-2">
+                  <img src={"https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=00020126360014BR.GOV.BCB.PIX0114" + PIX_KEY.replace(/[^a-zA-Z0-9]/g,'') + "5204000053039865402" + String(Math.floor(receitaMccMensal)).padStart(6,'0') + "5802BR5908VortexCore6009SaoPaulo62070503***6304FFFF"} alt="QR Code PIX" className="mx-auto w-28 h-28 rounded-lg bg-white p-1" onError={(e) => e.target.style.display='none'} />
+                  <p className="text-[#00F0FF] text-xs font-bold break-all">{PIX_KEY}</p>
+                  <p className="text-gray-500 text-[10px]">{PIX_NAME}</p>
+                </div>
+                <button onClick={() => { navigator.clipboard.writeText(PIX_KEY); alert("Chave PIX copiada!"); }} className="w-full bg-[#29292e] border border-[#3a3a42] text-white hover:bg-[#3a3a42] font-bold p-2 rounded-xl text-xs uppercase tracking-wider transition-all">
+                  Copiar Chave PIX
+                </button>
+              </div>
+
               <div className="bg-[#1a1a1e] border border-[#29292e] rounded-xl p-6 space-y-3">
                 <p className="font-bold">Livro de Lançamentos Fiscais</p>
+                {livroDeFaturas.length === 0 && <p className="text-xs text-gray-500">Nenhuma fatura registrada.</p>}
                 {livroDeFaturas.map(f => (
                   <div key={f.id} className="bg-[#121214] border border-[#29292e] rounded-xl p-3 text-xs">
                     <div className="flex justify-between items-center">
